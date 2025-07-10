@@ -21,12 +21,8 @@ let portalUsed = false;
 
 let inStillwater = false;
 let inEchoGarden = false;
-let inEmberHollows = false;
-
 let gardenPortal = { x: 150, y: 150, radius: 40 };
-let emberPortal = { x: 100, y: 100, radius: 40 };
 let gardenPortalVisible = false;
-let emberPortalVisible = false;
 
 let memoryMessage = "";
 let memoryTimer = 0;
@@ -34,13 +30,11 @@ let memoryTimer = 0;
 let npcMessage = "";
 let npcTimer = 0;
 let npcActive = false;
-
 let npcAnswered = false;
 
 let memories = {
   stillwater: { x: 500, y: 350, found: false, text: "The scent of rain on stone..." },
-  garden: { x: 250, y: 200, found: false, text: "A song you once knew, hummed by no one..." },
-  ember: { x: 300, y: 300, found: false, text: "The warmth of a forgotten fire..." }
+  garden: { x: 250, y: 200, found: false, text: "A song you once knew, hummed by no one..." }
 };
 
 let answers = [
@@ -58,12 +52,19 @@ let npcChoices = [
   { text: "A Secret", x: 450, y: 300, correct: false }
 ];
 
-let emberChoices = [
-  { text: "Time", x: 200, y: 450, correct: true },
-  { text: "Wind", x: 300, y: 450, correct: false },
-  { text: "Wood", x: 400, y: 450, correct: false },
-  { text: "Shadow", x: 500, y: 450, correct: false }
-];
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
 
 function drawStars() {
   ctx.fillStyle = "black";
@@ -95,26 +96,44 @@ function drawMemory(memory) {
   }
 }
 
+function drawNPC() {
+  if (npc.visited) return;
+  ctx.beginPath();
+  ctx.arc(npc.x, npc.y, npc.radius, 0, Math.PI * 2);
+  ctx.fillStyle = "orchid";
+  ctx.fill();
+
+  const dx = player.x - npc.x;
+  const dy = player.y - npc.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < player.radius + npc.radius) {
+    npc.visited = true;
+    npcMessage = "I am the Echo Keeper. Solve me this: 'I vanish the moment you speak my name. What am I?'";
+    npcTimer = 300;
+  }
+}
+
+function drawNPCChoices() {
+  if (npcAnswered) return;
+  npcChoices.forEach(choice => {
+    const boxWidth = 100;
+    const boxHeight = 40;
+    const boxX = choice.x - boxWidth / 2;
+    const boxY = choice.y - boxHeight / 2;
+    drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, 10);
+    ctx.shadowColor = "lightblue";
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = "white";
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "black";
+    ctx.font = "16px serif";
+    ctx.fillText(choice.text, choice.x - ctx.measureText(choice.text).width / 2, choice.y + 5);
+  });
+}
+
 function drawGame() {
-  if (inEmberHollows) {
-    ctx.fillStyle = "#330000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "orange";
-    ctx.font = "24px serif";
-    ctx.fillText("🔥 Ember Hollows 🔥", 300, 200);
-    ctx.fillStyle = "salmon";
-    ctx.font = "18px serif";
-    ctx.fillText("The heat remembers what you tried to forget...", 220, 250);
-    drawMemory(memories.ember);
-    emberChoices.forEach(choice => {
-      ctx.beginPath();
-      ctx.roundRect(choice.x - 60, choice.y - 25, 120, 40, 10);
-      ctx.fillStyle = "white";
-      ctx.fill();
-      ctx.fillStyle = "black";
-      ctx.fillText(choice.text, choice.x - 20, choice.y);
-    });
-  } else if (inEchoGarden) {
+  if (inEchoGarden) {
     ctx.fillStyle = "#013220";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "plum";
@@ -126,23 +145,6 @@ function drawGame() {
     drawMemory(memories.garden);
     drawNPC();
     drawNPCChoices();
-
-    if (!emberPortalVisible) emberPortalVisible = true;
-    if (emberPortalVisible) {
-      ctx.beginPath();
-      ctx.arc(emberPortal.x, emberPortal.y, emberPortal.radius, 0, Math.PI * 2);
-      ctx.strokeStyle = "orange";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.fillStyle = "white";
-      ctx.fillText("To Ember Hollows", emberPortal.x - 60, emberPortal.y - 50);
-      let dx = player.x - emberPortal.x;
-      let dy = player.y - emberPortal.y;
-      if (Math.sqrt(dx * dx + dy * dy) < player.radius + emberPortal.radius) {
-        inEmberHollows = true;
-      }
-    }
-
   } else if (inStillwater) {
     ctx.fillStyle = "#001f3f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -173,12 +175,16 @@ function drawGame() {
     if (showRiddle) {
       ctx.fillText("What shines in silence, drifts alone, and never truly sets?", 50, 50);
       answers.forEach(a => {
-        ctx.beginPath();
-        ctx.arc(a.x, a.y, 25, 0, Math.PI * 2);
+        const boxWidth = 100;
+        const boxHeight = 40;
+        const boxX = a.x - boxWidth / 2;
+        const boxY = a.y - boxHeight / 2;
+        drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, 10);
         ctx.fillStyle = "white";
         ctx.fill();
         ctx.fillStyle = "black";
-        ctx.fillText(a.text, a.x - 20, a.y + 5);
+        ctx.font = "16px serif";
+        ctx.fillText(a.text, a.x - ctx.measureText(a.text).width / 2, a.y + 5);
       });
     }
     if (portalVisible && !portalUsed) {
@@ -225,20 +231,6 @@ function drawGame() {
   }
 }
 
-CanvasRenderingContext2D.prototype.roundRect = function (x, y, width, height, radius) {
-  this.beginPath();
-  this.moveTo(x + radius, y);
-  this.lineTo(x + width - radius, y);
-  this.quadraticCurveTo(x + width, y, x + width, y + radius);
-  this.lineTo(x + width, y + height - radius);
-  this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  this.lineTo(x + radius, y + height);
-  this.quadraticCurveTo(x, y + height, x, y + height - radius);
-  this.lineTo(x, y + radius);
-  this.quadraticCurveTo(x, y, x + radius, y);
-  this.closePath();
-};
-
 canvas.addEventListener("mousemove", e => {
   const rect = canvas.getBoundingClientRect();
   mousePos.x = e.clientX - rect.left;
@@ -252,7 +244,8 @@ canvas.addEventListener("click", e => {
 
   if (showRiddle) {
     answers.forEach(a => {
-      if (Math.sqrt((mx - a.x) ** 2 + (my - a.y) ** 2) < 25) {
+      const w = 100, h = 40;
+      if (mx > a.x - w/2 && mx < a.x + w/2 && my > a.y - h/2 && my < a.y + h/2) {
         if (a.correct) {
           showRiddle = false;
           setTimeout(() => {
@@ -266,21 +259,10 @@ canvas.addEventListener("click", e => {
     });
   }
 
-  if (inEmberHollows) {
-    emberChoices.forEach(choice => {
-      if (mx > choice.x - 60 && mx < choice.x + 60 && my > choice.y - 25 && my < choice.y + 15) {
-        if (choice.correct) {
-          alert("🔥 Correct. The embers glow brighter...");
-        } else {
-          alert("That answer fades into the ash...");
-        }
-      }
-    });
-  }
-
-  if (!npcAnswered && inEchoGarden) {
+  if (!npcAnswered) {
     npcChoices.forEach(choice => {
-      if (Math.sqrt((mx - choice.x) ** 2 + (my - choice.y) ** 2) < 30) {
+      const w = 100, h = 40;
+      if (mx > choice.x - w/2 && mx < choice.x + w/2 && my > choice.y - h/2 && my < choice.y + h/2) {
         if (choice.correct) {
           npcMessage = "You are wise. The garden hums in agreement...";
           npcTimer = 300;
@@ -294,11 +276,6 @@ canvas.addEventListener("click", e => {
   }
 });
 
-function loop() {
-  drawGame();
-  requestAnimationFrame(loop);
-}
-
 intro.addEventListener("click", () => {
   intro.style.display = "none";
   document.getElementById("goalMessage").style.display = "flex";
@@ -310,3 +287,8 @@ document.getElementById("goalMessage").addEventListener("click", () => {
   music.play().catch(() => {});
   loop();
 });
+
+function loop() {
+  drawGame();
+  requestAnimationFrame(loop);
+}
